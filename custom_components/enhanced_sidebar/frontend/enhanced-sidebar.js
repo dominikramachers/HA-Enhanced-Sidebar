@@ -189,16 +189,16 @@
     for (const attr of Array.from(proxy.attributes)) {
       if (attr.name === 'id' || attr.name === 'href' || attr.name.startsWith('data-es-')) proxy.removeAttribute(attr.name);
     }
+    // Nur Symbol und Beschriftung übernehmen; Zahlen (Badge, auch im Symbol-Slot der schmalen Leiste) setzt syncProxy
     for (const child of Array.from(proxy.children)) {
       const slot = child.getAttribute('slot');
-      if (slot !== 'start' && slot !== 'headline') child.remove();
+      const isBadge = /^\d+\+?$/.test((child.textContent || '').trim());
+      if ((slot !== 'start' && slot !== 'headline') || isBadge) child.remove();
     }
     // Symbole bekommen ihr Bild über eine Eigenschaft, die cloneNode nicht mitnimmt
-    const from = orig.querySelectorAll('[slot="start"]');
-    const to = proxy.querySelectorAll('[slot="start"]');
-    from.forEach((node, i) => {
-      if (to[i] && 'path' in node && node.path) to[i].path = node.path;
-    });
+    const icon = orig.querySelector('[slot="start"]:not(span)') || orig.querySelector('ha-svg-icon');
+    const iconCopy = proxy.querySelector('[slot="start"]:not(span)') || proxy.querySelector('ha-svg-icon');
+    if (icon && iconCopy && 'path' in icon && icon.path) iconCopy.path = icon.path;
     proxy.setAttribute('data-es-proxy', path);
     proxy.setAttribute('role', 'listitem');
     proxy.setAttribute('tabindex', '0');

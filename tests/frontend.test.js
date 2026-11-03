@@ -412,7 +412,7 @@ function buildRealSidebar(dom, { badge = '' } = {}) {
   const item = (parent, id, text, extra = '') => {
     const el = doc.createElement('ha-list-item-button');
     el.id = id;
-    el.innerHTML = '<ha-svg-icon slot="start"></ha-svg-icon><span slot="headline">' + text + '</span>' + extra;
+    el.innerHTML = '<ha-svg-icon slot="start"></ha-svg-icon>' + (extra ? '<span slot="start">' + extra.replace(/<[^>]+>/g, '') + '</span>' : '') + '<span slot="headline">' + text + '</span>' + extra;
     parent.append(el);
     return el;
   };
@@ -481,6 +481,9 @@ test('settings_in_group: Kopie in der Gruppe, Original ausgeblendet, Badge an de
   assert.equal(proxy.id, '');
   assert.equal(proxy.hasAttribute('href'), false);
   assert.equal(proxy.querySelector('[data-es-badge]').textContent, '2');
+  // die Zahl im Symbol-Slot der Originals wird nicht mitkopiert
+  assert.equal(proxy.querySelectorAll('span[slot="start"]').length, 0);
+  assert.equal(proxy.querySelectorAll('span').length, 2); // Beschriftung + Badge
   // Kopie steht als erster Eintrag direkt hinter der Kopfzeile (kleinste Ordnungszahl der Gruppe)
   assert.equal(proxy.style.order, '9001');
   assert.equal(sb.slotMain.querySelector('#sidebar-panel-hacs').style.order, '9002');
