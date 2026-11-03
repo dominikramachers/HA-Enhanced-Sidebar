@@ -10,6 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.enhanced_sidebar.const import (
     CONF_EXCLUDE,
     CONF_GROUP_NAME,
+    CONF_GROUP_STYLE,
     CONF_HIDDEN,
     CONF_INCLUDE,
     CONF_SETTINGS_IN_GROUP,
@@ -97,3 +98,21 @@ async def test_options_flow_cleans_input(hass: HomeAssistant) -> None:
     assert options[CONF_EXCLUDE] == DEFAULT_OPTIONS[CONF_EXCLUDE]
     assert options[CONF_SETTINGS_IN_GROUP] is True
     assert DEFAULT_OPTIONS[CONF_SETTINGS_IN_GROUP] is False
+
+
+async def test_group_style_option(hass: HomeAssistant, hass_ws_client) -> None:
+    assert DEFAULT_OPTIONS[CONF_GROUP_STYLE] == "dropdown"
+    entry = await _setup(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_GROUP_STYLE: "popup"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_GROUP_STYLE] == "popup"
+    await hass.async_block_till_done()
+
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": WS_GET_CONFIG})
+    msg = await client.receive_json()
+    assert msg["result"][CONF_GROUP_STYLE] == "popup"

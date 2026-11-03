@@ -18,6 +18,7 @@
         "data": {
           "group_name": "Name der Gruppe",
           "group_icon": "Symbol der Gruppe",
+          "group_style": "Darstellung der Gruppe",
           "auto_detect_admin": "Admin-Panels automatisch erkennen",
           "auto_collapse": "Gruppe automatisch zuklappen",
           "settings_in_group": "Einstellungen in die Gruppe",
@@ -29,6 +30,7 @@
         "data_description": {
           "group_name": "Beschriftung des Eintrags in der Seitenleiste.",
           "group_icon": "Symbol des Eintrags, z. B. mdi:shield-account-outline.",
+          "group_style": "„Dropdown“ klappt die Einträge in der Seitenleiste auf. „Popup“ zeigt unten in der Seitenleiste einen Admin-Button (über Benachrichtigungen), der ein Fenster neben der Seitenleiste öffnet; auf dem Handy erscheint es am unteren Bildrand.",
           "auto_detect_admin": "Alle Panels, die nur Administratoren sehen, kommen in die Gruppe. Ohne diese Option zählen nur die Einträge unter „Zusätzlich in die Gruppe“.",
           "auto_collapse": "Die Gruppe ist beim Laden zugeklappt und klappt wieder zu, sobald eine Seite außerhalb der Gruppe geöffnet wird. Auf einer Seite der Gruppe ist sie automatisch offen.",
           "settings_in_group": "Der Eintrag „Einstellungen“ aus dem unteren Bereich der Seitenleiste steht in der Gruppe. Die zugeklappte Gruppe zeigt die Zahl offener Updates und Reparaturen an.",
@@ -37,6 +39,14 @@
           "hidden": "URL-Pfade von Panels, die für alle Nutzer aus der Seitenleiste verschwinden, z. B. history, logbook, media-browser.",
           "order": "URL-Pfade in der gewünschten Reihenfolge. Nicht aufgeführte Einträge folgen danach in der normalen Reihenfolge."
         }
+      }
+    }
+  },
+  "selector": {
+    "group_style": {
+      "options": {
+        "dropdown": "Dropdown (in der Seitenleiste aufklappen)",
+        "popup": "Popup (Fenster neben der Seitenleiste)"
       }
     }
   }

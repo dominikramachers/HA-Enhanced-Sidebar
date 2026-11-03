@@ -32,6 +32,7 @@
     order: [],
     auto_collapse: true,
     settings_in_group: false,
+    group_style: 'dropdown',
   };
 
   /* ------------------------------------------------------------------ *
@@ -60,6 +61,7 @@
       hidden: toList(pick('hidden')),
       order: toList(pick('order')),
       auto_collapse: pick('auto_collapse') !== false,
+      group_style: pick('group_style') === 'popup' ? 'popup' : 'dropdown',
     };
   }
 
@@ -179,6 +181,41 @@
     return '';
   }
 
+  /** Öffnet ein Panel wie ein Link von Home Assistant (ohne Neuladen der Seite). */
+  function navigate(path) {
+    history.pushState(null, '', '/' + path);
+    window.dispatchEvent(new CustomEvent('location-changed', { bubbles: true, composed: true, detail: { replace: false } }));
+  }
+
+  /** Schmale Ansicht (Handy/App): Seitenleiste ist ein Overlay, das Popup wird zum Fenster am unteren Rand. */
+  const isNarrow = () => typeof matchMedia === 'function' && matchMedia('(max-width: 870px)').matches;
+
+  /** Beschriftung eines Eintrags der Seitenleiste. */
+  function labelOfItem(el, panels, path) {
+    const headline = el.querySelector('[slot="headline"]');
+    const text = headline ? (headline.textContent || '').trim() : '';
+    if (text) return text;
+    const panel = panels && panels[path];
+    return (panel && panel.title) || path;
+  }
+
+  /** Symbol eines Eintrags als neues Element (für das Popup). */
+  function makeIcon(orig, path, panels) {
+    const src = orig.querySelector('[slot="start"]:not(span)') || orig.querySelector('ha-svg-icon, ha-icon');
+    let icon;
+    if (src && src.localName === 'ha-svg-icon') {
+      icon = document.createElement('ha-svg-icon');
+      if (src.path) icon.path = src.path;
+    } else {
+      icon = document.createElement('ha-icon');
+      const panel = panels && panels[path];
+      const name = (src && (src.icon || src.getAttribute('icon'))) || (panel && panel.icon) || 'mdi:view-dashboard';
+      icon.setAttribute('icon', name);
+    }
+    icon.className = 'es-icon';
+    return icon;
+  }
+
   /**
    * Eintrag aus einer anderen Liste (z. B. "Einstellungen" im unteren Bereich) in der Gruppe:
    * Der Original-Eintrag bleibt an seinem Platz (nur ausgeblendet), in der Gruppe steht eine Kopie
@@ -205,8 +242,7 @@
     const go = (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      history.pushState(null, '', '/' + path);
-      window.dispatchEvent(new CustomEvent('location-changed', { bubbles: true, composed: true, detail: { replace: false } }));
+      navigate(path);
     };
     proxy.addEventListener('click', go);
     proxy.addEventListener('keydown', (ev) => {
@@ -249,6 +285,13 @@
   };
   const setFlag = (el, name, on) => (on ? setAttr(el, name, '') : clearAttr(el, name));
 
+  const BADGE_CSS = `.es-badge{
+  box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:none;
+  min-width:20px;height:20px;padding:0 6px;border-radius:10px;
+  background:var(--accent-color,#ff9800);color:var(--text-accent-color,var(--text-primary-color,#fff));
+  font-size:12px;font-weight:500;line-height:20px;
+}`;
+
   const CSS = `
 [data-es-list]{display:flex;flex-direction:column}
 [data-es-hidden]{display:none !important}
@@ -269,12 +312,7 @@
 [data-es-header] .es-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 [data-es-header] .es-chevron{transition:transform .2s ease}
 [data-es-header][aria-expanded="true"] .es-chevron{transform:rotate(180deg)}
-.es-badge{
-  box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:none;
-  min-width:20px;height:20px;padding:0 6px;border-radius:10px;
-  background:var(--accent-color,#ff9800);color:var(--text-accent-color,var(--text-primary-color,#fff));
-  font-size:12px;font-weight:500;line-height:20px;
-}
+${BADGE_CSS}
 [data-es-header]{position:relative}
 [data-es-header] .es-badge{margin-inline-start:auto}
 [data-es-header][aria-expanded="true"] .es-badge,[data-es-header] .es-badge:empty{display:none}
@@ -284,6 +322,39 @@
 [data-es-compact]>[data-es-header] .es-badge{position:absolute;top:2px;right:6px;min-width:16px;height:16px;padding:0 4px;font-size:10px;line-height:16px}
 @media (pointer:coarse){[data-es-header]{height:48px;min-height:48px}}
 @media (prefers-reduced-motion:reduce){[data-es-header] .es-chevron{transition:none}}
+[data-es-header][data-es-popup-btn]{height:40px;min-height:40px}
+@media (pointer:coarse){[data-es-header][data-es-popup-btn]{height:44px;min-height:44px}}
+[data-es-header][data-es-popup-btn] .es-chevron{transform:none;opacity:.7}
+[data-es-header][data-es-popup-btn][aria-expanded="true"]{background:color-mix(in srgb,var(--sidebar-text-color,var(--primary-text-color)) 8%,transparent)}
+[data-es-header][data-es-popup-btn][aria-expanded="true"] .es-badge:not(:empty){display:inline-flex}
+`;
+
+  // Das Popup liegt direkt im <body> (nicht im Shadow-Root der Seitenleiste), damit es nie abgeschnitten wird.
+  const POPUP_CSS = `
+[data-es-popup]{
+  position:fixed;z-index:1000;box-sizing:border-box;min-width:220px;max-width:min(320px,calc(100vw - 16px));
+  overflow-y:auto;padding:6px;border-radius:12px;
+  background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color,#212121);
+  border:1px solid var(--divider-color,rgba(127,127,127,.3));box-shadow:0 8px 28px rgba(0,0,0,.35);
+  font-family:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,Roboto,sans-serif));
+  font-size:var(--ha-font-size-m,14px);animation:es-pop .12s ease-out;
+}
+[data-es-popup][data-es-sheet]{left:8px;right:8px;max-width:none;bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+[data-es-popup] a{
+  display:flex;align-items:center;gap:16px;box-sizing:border-box;height:44px;padding:0 12px;border-radius:8px;
+  color:inherit;text-decoration:none;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  font-weight:var(--ha-font-weight-medium,500);line-height:20px;
+}
+[data-es-popup][data-es-sheet] a{height:52px}
+[data-es-popup] a:hover{background:color-mix(in srgb,var(--primary-text-color,#212121) 8%,transparent)}
+[data-es-popup] a:focus-visible{outline:2px solid var(--primary-color,#03a9f4);outline-offset:-2px;background:color-mix(in srgb,var(--primary-text-color,#212121) 8%,transparent)}
+[data-es-popup] a[aria-current="page"]{color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,transparent)}
+[data-es-popup] a[aria-current="page"] .es-icon{color:var(--primary-color,#03a9f4)}
+[data-es-popup] .es-icon{--mdc-icon-size:24px;flex:none;display:inline-flex;color:var(--secondary-text-color,#727272)}
+[data-es-popup] .es-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+${BADGE_CSS}
+@keyframes es-pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){[data-es-popup]{animation:none}}
 `;
 
   function ensureStyle(root) {
@@ -314,6 +385,11 @@
     header.setAttribute('role', 'button');
     header.setAttribute('tabindex', '0');
     header.setAttribute('aria-expanded', 'false');
+    const popup = cfg.group_style === 'popup';
+    if (popup) {
+      header.setAttribute('data-es-popup-btn', '');
+      header.setAttribute('aria-haspopup', 'menu');
+    }
 
     const icon = document.createElement('ha-icon');
     icon.setAttribute('icon', cfg.group_icon);
@@ -322,7 +398,7 @@
     label.textContent = cfg.group_name;
     const chevron = document.createElement('ha-icon');
     chevron.className = 'es-chevron';
-    chevron.setAttribute('icon', 'mdi:chevron-down');
+    chevron.setAttribute('icon', popup ? 'mdi:chevron-right' : 'mdi:chevron-down');
     const badge = document.createElement('span');
     badge.className = 'es-badge';
     header.append(icon, label, badge, chevron);
@@ -330,12 +406,12 @@
     header.addEventListener('click', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      onToggle();
+      onToggle(false);
     });
     header.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') {
         ev.preventDefault();
-        onToggle();
+        onToggle(true);
       }
     });
     return header;
@@ -360,7 +436,13 @@
       status: 'init',
       lastItems: [],
       proxies: new Map(),
+      // Popup-Darstellung
+      open: false,
+      popupEl: null,
+      popupSig: '',
+      members: [],
     };
+    const popupMode = cfg.group_style === 'popup';
 
     const OBSERVE = {
       childList: true,
@@ -409,7 +491,157 @@
       state.header = null;
     }
 
+    /* ---- Popup (group_style: popup) ---- */
+
+    function ensurePopupStyle() {
+      if (document.querySelector('style[data-es-popup-style]')) return;
+      const style = document.createElement('style');
+      style.setAttribute('data-es-popup-style', '');
+      style.textContent = POPUP_CSS;
+      (document.head || document.documentElement).appendChild(style);
+    }
+
+    function buildRow(member) {
+      const row = document.createElement('a');
+      row.setAttribute('href', '/' + member.path);
+      row.setAttribute('role', 'menuitem');
+      row.setAttribute('data-es-path', member.path);
+      if (member.selected) row.setAttribute('aria-current', 'page');
+      const label = document.createElement('span');
+      label.className = 'es-label';
+      label.textContent = member.label;
+      row.append(member.makeIcon(), label);
+      if (member.badge) {
+        const badge = document.createElement('span');
+        badge.className = 'es-badge';
+        badge.textContent = member.badge;
+        row.append(badge);
+      }
+      row.addEventListener('click', (ev) => {
+        // Mit Strg/Cmd/Shift oder Mittelklick bleibt es ein normaler Link (neuer Tab)
+        if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+        ev.preventDefault();
+        closePopup(false);
+        navigate(member.path);
+        if (isNarrow() && state.sidebar) {
+          // In der schmalen Ansicht ist die Seitenleiste ein Overlay: nach der Auswahl schließen
+          state.sidebar.dispatchEvent(
+            new CustomEvent('hass-toggle-menu', { bubbles: true, composed: true, detail: { open: false } })
+          );
+        }
+      });
+      return row;
+    }
+
+    function placePopup() {
+      const el = state.popupEl;
+      const header = state.header;
+      if (!el || !header) return;
+      const narrow = isNarrow();
+      setFlag(el, 'data-es-sheet', narrow);
+      if (narrow) {
+        el.style.removeProperty('left');
+        el.style.removeProperty('bottom');
+        el.style.maxHeight = Math.round(window.innerHeight * 0.7) + 'px';
+        return;
+      }
+      const headerRect = header.getBoundingClientRect();
+      const sidebarRect = state.sidebar ? state.sidebar.getBoundingClientRect() : headerRect;
+      const bottom = Math.max(8, Math.round(window.innerHeight - headerRect.bottom));
+      el.style.left = Math.round(sidebarRect.right + 8) + 'px';
+      el.style.bottom = bottom + 'px';
+      el.style.maxHeight = Math.max(120, window.innerHeight - bottom - 8) + 'px';
+    }
+
+    function renderPopup() {
+      if (!state.open) return;
+      if (!state.members.length) {
+        closePopup(false);
+        return;
+      }
+      const sig = JSON.stringify(state.members.map((m) => [m.path, m.label, m.badge, m.selected]));
+      if (!state.popupEl) {
+        const el = document.createElement('div');
+        el.setAttribute('data-es-popup', '');
+        el.setAttribute('role', 'menu');
+        el.setAttribute('aria-label', cfg.group_name);
+        document.body.append(el);
+        state.popupEl = el;
+        state.popupSig = '';
+      }
+      if (sig !== state.popupSig) {
+        const active = document.activeElement && document.activeElement.getAttribute
+          ? document.activeElement.getAttribute('data-es-path')
+          : null;
+        const inPopup = !!(active && state.popupEl.contains(document.activeElement));
+        state.popupEl.replaceChildren(...state.members.map(buildRow));
+        state.popupSig = sig;
+        if (inPopup) {
+          const again = Array.from(state.popupEl.children).find((row) => row.getAttribute('data-es-path') === active);
+          if (again) again.focus();
+        }
+      }
+      placePopup();
+    }
+
+    function onDocPointer(ev) {
+      const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
+      if ((state.popupEl && path.includes(state.popupEl)) || (state.header && path.includes(state.header))) return;
+      closePopup(false);
+    }
+
+    function onDocKey(ev) {
+      if (!state.popupEl) return;
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closePopup(true);
+        return;
+      }
+      if (ev.key === 'Tab') {
+        closePopup(false);
+        return;
+      }
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(ev.key)) return;
+      const rows = Array.from(state.popupEl.children);
+      if (!rows.length) return;
+      ev.preventDefault();
+      const index = rows.indexOf(document.activeElement);
+      let next;
+      if (ev.key === 'Home') next = 0;
+      else if (ev.key === 'End') next = rows.length - 1;
+      else if (ev.key === 'ArrowDown') next = index < 0 ? 0 : (index + 1) % rows.length;
+      else next = index < 0 ? rows.length - 1 : (index - 1 + rows.length) % rows.length;
+      rows[next].focus();
+    }
+
+    function openPopup(viaKeyboard) {
+      if (state.open || !state.members.length) return;
+      state.open = true;
+      ensurePopupStyle();
+      document.addEventListener('pointerdown', onDocPointer, true);
+      document.addEventListener('keydown', onDocKey, true);
+      if (state.header) setAttr(state.header, 'aria-expanded', 'true');
+      renderPopup();
+      if (viaKeyboard && state.popupEl && state.popupEl.firstElementChild) state.popupEl.firstElementChild.focus();
+    }
+
+    function closePopup(focusHeader) {
+      if (!state.open) return;
+      state.open = false;
+      document.removeEventListener('pointerdown', onDocPointer, true);
+      document.removeEventListener('keydown', onDocKey, true);
+      if (state.popupEl) state.popupEl.remove();
+      state.popupEl = null;
+      state.popupSig = '';
+      if (state.header) {
+        setAttr(state.header, 'aria-expanded', 'false');
+        if (focusHeader && typeof state.header.focus === 'function') state.header.focus();
+      }
+    }
+
     function cleanup(root) {
+      closePopup(false);
       removeHeader();
       state.proxies.clear();
       for (const el of root.querySelectorAll('[data-es-path],[data-es-list],[data-es-header],[data-es-proxy]')) {
@@ -427,7 +659,12 @@
       }
     }
 
-    function toggle() {
+    function toggle(viaKeyboard) {
+      if (popupMode) {
+        if (state.open) closePopup(false);
+        else openPopup(viaKeyboard === true);
+        return;
+      }
       state.expanded = !state.expanded;
       apply();
     }
@@ -455,25 +692,28 @@
 
         const decisions = items.map((item) => ({ ...item, ...classify(item.path, hass.panels, cfg) }));
 
-        // Alle gruppierten Einträge müssen in derselben Liste stehen: die mit den meisten gewinnt.
-        const counts = new Map();
-        for (const d of decisions) {
-          if (d.grouped) counts.set(d.el.parentElement, (counts.get(d.el.parentElement) || 0) + 1);
-        }
+        // Dropdown: Alle gruppierten Einträge müssen in derselben Liste stehen: die mit den meisten gewinnt.
+        // (Im Popup-Modus sind die Einträge nur ausgeblendet und stehen im Popup, dort gibt es keine Liste.)
         let groupParent = null;
-        let best = 0;
-        for (const [parent, count] of counts) {
-          if (count > best) {
-            groupParent = parent;
-            best = count;
+        for (const d of decisions) d.proxied = false;
+        if (!popupMode) {
+          const counts = new Map();
+          for (const d of decisions) {
+            if (d.grouped) counts.set(d.el.parentElement, (counts.get(d.el.parentElement) || 0) + 1);
           }
-        }
-        // Einträge aus anderen Listen (z. B. "Einstellungen" unten) stehen als Kopie in der Gruppe.
-        for (const d of decisions) {
-          d.proxied = false;
-          if (d.grouped && d.el.parentElement !== groupParent) {
-            d.grouped = false;
-            d.proxied = !!groupParent;
+          let best = 0;
+          for (const [parent, count] of counts) {
+            if (count > best) {
+              groupParent = parent;
+              best = count;
+            }
+          }
+          // Einträge aus anderen Listen (z. B. "Einstellungen" unten) stehen als Kopie in der Gruppe.
+          for (const d of decisions) {
+            if (d.grouped && d.el.parentElement !== groupParent) {
+              d.grouped = false;
+              d.proxied = !!groupParent;
+            }
           }
         }
 
@@ -489,13 +729,13 @@
         let firstGrouped = null;
         for (const d of decisions) {
           let order = null;
-          if (d.grouped) order = ORDER_GROUPED + (d.rank === null ? 0 : d.rank);
+          if (d.grouped) order = popupMode ? null : ORDER_GROUPED + (d.rank === null ? 0 : d.rank);
           else if (d.rank !== null) order = d.rank;
           else if (cfg.order.length && d.el.parentElement === mainParent) order = ORDER_UNLISTED;
 
           setAttr(d.el, 'data-es-path', d.path);
           setFlag(d.el, 'data-es-grouped', d.grouped);
-          setFlag(d.el, 'data-es-hidden', d.hidden || d.proxied);
+          setFlag(d.el, 'data-es-hidden', d.hidden || d.proxied || (popupMode && d.grouped));
           if (order === null) {
             if (d.el.style.order) d.el.style.removeProperty('order');
           } else if (d.el.style.order !== String(order)) {
@@ -537,7 +777,64 @@
         const parents = new Set(decisions.map((d) => d.el.parentElement).filter(Boolean));
         for (const parent of parents) setFlag(parent, 'data-es-list', orderedParents.has(parent));
 
-        if (groupParent && firstGrouped) {
+        let headerParent = null;
+        let hasGroup = false;
+        if (popupMode) {
+          // Admin-Button im unteren Bereich (Einstellungen/Profil), direkt über "Benachrichtigungen".
+          // Gibt es keinen unteren Bereich, steht er am Ende der Hauptliste.
+          const members = decisions.filter((d) => d.grouped);
+          const bottomParent =
+            decisions
+              .filter((d) => d.path === 'config' || d.path === 'profile')
+              .map((d) => d.el.parentElement)
+              .find((parent) => parent && parent !== mainParent) || null;
+          headerParent = bottomParent || mainParent;
+          hasGroup = members.length > 0 && !!headerParent;
+
+          state.members = members
+            .map((d, index) => {
+              const own = d.el.parentElement !== mainParent && d.rank === null;
+              const text = badgeText(d.el);
+              return {
+                path: d.path,
+                label: labelOfItem(d.el, hass.panels, d.path),
+                badge: text,
+                selected: d.path === state.lastPath,
+                sortKey: own ? ORDER_PROXY : ORDER_GROUPED + (d.rank === null ? 0 : d.rank),
+                index,
+                makeIcon: () => makeIcon(d.el, d.path, hass.panels),
+              };
+            })
+            .sort((a, b) => a.sortKey - b.sortKey || a.index - b.index);
+
+          if (hasGroup) {
+            if (!state.header) state.header = buildHeader(cfg, toggle);
+            if (bottomParent) {
+              const anchor = Array.from(bottomParent.children).find((child) => child !== state.header) || null;
+              if (state.header.parentElement !== bottomParent || state.header.nextElementSibling !== anchor) {
+                bottomParent.insertBefore(state.header, anchor);
+              }
+              if (state.header.style.order) state.header.style.removeProperty('order');
+            } else {
+              if (state.header.parentElement !== mainParent || state.header.nextElementSibling) mainParent.append(state.header);
+              orderedParents.add(mainParent);
+              setFlag(mainParent, 'data-es-list', true);
+            }
+            setAttr(state.header, 'aria-expanded', state.open ? 'true' : 'false');
+            const total = members.reduce((sum, d) => sum + (parseInt(badgeText(d.el), 10) || 0), 0);
+            const headerBadge = state.header.querySelector('.es-badge');
+            const badgeValue = total > 0 ? String(total) : '';
+            if (headerBadge && headerBadge.textContent !== badgeValue) headerBadge.textContent = badgeValue;
+            const width = sidebar.getBoundingClientRect ? sidebar.getBoundingClientRect().width : 0;
+            setFlag(headerParent, 'data-es-compact', width > 0 && width < 120);
+            renderPopup();
+          } else {
+            closePopup(false);
+            removeHeader();
+          }
+        } else if (groupParent && firstGrouped) {
+          headerParent = groupParent;
+          hasGroup = true;
           if (!state.header) state.header = buildHeader(cfg, toggle);
           if (state.header.parentElement !== groupParent || state.header.nextElementSibling !== firstGrouped) {
             groupParent.insertBefore(state.header, firstGrouped);
@@ -553,14 +850,15 @@
           removeHeader();
         }
         for (const parent of parents) {
-          if (parent !== groupParent) {
+          if (parent !== headerParent) {
             clearAttr(parent, 'data-es-collapsed');
             clearAttr(parent, 'data-es-compact');
           }
         }
+        if (popupMode && headerParent) clearAttr(headerParent, 'data-es-collapsed');
 
         state.lastItems = decisions;
-        state.status = groupParent ? 'grouped' : 'no-group';
+        state.status = hasGroup ? 'grouped' : 'no-group';
       } catch (err) {
         state.status = 'error';
         console.warn(LOG, 'Seitenleiste konnte nicht angepasst werden', err);
@@ -574,7 +872,10 @@
       const hass = getHass();
       const path = panelFromHref(location.pathname);
       const inGroup = !!(path && classify(path, hass && hass.panels, cfg).grouped);
-      if (inGroup) {
+      if (popupMode) {
+        // Das Popup schließt bei jeder Navigation; "selected" im Popup folgt der aktuellen Seite.
+        if (state.lastPath !== path) closePopup(false);
+      } else if (inGroup) {
         state.expanded = true;
       } else if (cfg.auto_collapse && state.lastPath !== undefined && state.lastPath !== path) {
         state.expanded = false;
@@ -601,6 +902,9 @@
       state.timer = null;
       if (state.observer) state.observer.disconnect();
       if (state.resize) state.resize.disconnect();
+      closePopup(false);
+      const popupStyle = document.querySelector('style[data-es-popup-style]');
+      if (popupStyle) popupStyle.remove();
       if (state.sidebar && state.sidebar.shadowRoot) cleanup(state.sidebar.shadowRoot);
     }
 

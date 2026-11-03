@@ -15,6 +15,10 @@ CONF_HIDDEN = "hidden"
 CONF_ORDER = "order"
 CONF_AUTO_COLLAPSE = "auto_collapse"
 CONF_SETTINGS_IN_GROUP = "settings_in_group"
+CONF_GROUP_STYLE = "group_style"
+
+GROUP_STYLE_DROPDOWN = "dropdown"
+GROUP_STYLE_POPUP = "popup"
 
 # Standardwerte. Das Frontend-Script kennt dieselben Werte und fällt darauf
 # zurück, falls die Konfiguration nicht geladen werden kann.
@@ -28,6 +32,7 @@ DEFAULT_OPTIONS: dict[str, object] = {
     CONF_ORDER: [],
     CONF_AUTO_COLLAPSE: True,
     CONF_SETTINGS_IN_GROUP: False,
+    CONF_GROUP_STYLE: GROUP_STYLE_DROPDOWN,
 }
 
 LIST_KEYS = (CONF_INCLUDE, CONF_EXCLUDE, CONF_HIDDEN, CONF_ORDER)
