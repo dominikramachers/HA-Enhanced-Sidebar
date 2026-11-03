@@ -162,7 +162,7 @@ test('Admin-Gruppe: Kopfzeile, Markierungen, zugeklappt, Reihenfolge', () => {
   assert.equal(headers[0].nextElementSibling.getAttribute('href'), '/dienste-uebersicht');
   assert.equal(sb.list.hasAttribute('data-es-list'), true);
   assert.equal(sb.list.hasAttribute('data-es-collapsed'), true);
-  for (const el of sb.root.querySelectorAll('[data-es-grouped]')) assert.equal(el.style.order, '9001');
+  for (const el of sb.root.querySelectorAll('[data-es-grouped]')) assert.equal(el.style.order, '9002');
 
   // normale Einträge und die untere Liste bleiben unberührt
   const normal = sb.list.querySelector('[href="/mein-zuhause"]');
@@ -275,14 +275,21 @@ test('Include, Hidden und Reihenfolge', () => {
   assert.equal(sb.list.hasAttribute('data-es-list'), true);
 });
 
-test('Gruppierte Einträge in einer anderen Liste werden nicht angefasst', () => {
+test('Gruppierte Einträge in einer anderen Liste: Original ausgeblendet, Kopie in der Gruppe', () => {
   const { dom, api } = loadApi();
   // Admin-Panel "hacs" steht in der unteren Liste, die übrigen oben
   const sb = buildSidebar(dom, HREFS.filter((h) => h !== '/hacs'), { bottom: ['/hacs', '/config'] });
   const c = makeController(api, dom, sb, PANELS, {});
   c.apply();
-  assert.equal(sb.bottomList.querySelector('[href="/hacs"]').hasAttribute('data-es-grouped'), false);
-  assert.equal(sb.root.querySelectorAll('[data-es-grouped]').length, 3);
+  const original = sb.bottomList.querySelector('[href="/hacs"]');
+  assert.equal(original.hasAttribute('data-es-grouped'), false);
+  assert.equal(original.hasAttribute('data-es-hidden'), true);
+  const proxy = sb.list.querySelector('[data-es-proxy="hacs"]');
+  assert.ok(proxy);
+  assert.equal(proxy.hasAttribute('data-es-grouped'), true);
+  assert.equal(proxy.hasAttribute('href'), false);
+  // 3 echte Einträge + 1 Kopie
+  assert.equal(sb.root.querySelectorAll('[data-es-grouped]').length, 4);
 });
 
 test('Unbekannter Aufbau: keine Seitenleiste oder keine Einträge -> nichts passiert', () => {
@@ -389,4 +396,146 @@ test('Aufbau von Home Assistant 2026.10: ha-list-item-button mit ID, Link im Sha
   assert.ok(header);
   assert.equal(header.parentElement, slot);
   assert.equal(slot.hasAttribute('data-es-collapsed'), true);
+});
+
+/** Aufbau wie in Home Assistant 2026.10: Hauptliste und feste untere Liste mit Einstellungen, Benachrichtigungen, Profil. */
+function buildRealSidebar(dom, { badge = '' } = {}) {
+  const doc = dom.window.document;
+  const ha = doc.createElement('home-assistant');
+  doc.body.append(ha);
+  const main = doc.createElement('home-assistant-main');
+  ha.attachShadow({ mode: 'open' }).append(main);
+  const sidebar = doc.createElement('ha-sidebar');
+  main.attachShadow({ mode: 'open' }).append(sidebar);
+  const root = sidebar.attachShadow({ mode: 'open' });
+
+  const item = (parent, id, text, extra = '') => {
+    const el = doc.createElement('ha-list-item-button');
+    el.id = id;
+    el.innerHTML = '<ha-svg-icon slot="start"></ha-svg-icon><span slot="headline">' + text + '</span>' + extra;
+    parent.append(el);
+    return el;
+  };
+  const navMain = doc.createElement('ha-list-nav');
+  const slotMain = doc.createElement('slot');
+  navMain.append(slotMain);
+  for (const [path, text] of [['mein-zuhause', 'Übersicht'], ['heizung-uebersicht', 'Heizen'], ['hacs', 'HACS'], ['dienste-uebersicht', 'Dienste']]) {
+    item(slotMain, 'sidebar-panel-' + path, text);
+  }
+  const navBottom = doc.createElement('ha-list-nav');
+  const slotBottom = doc.createElement('slot');
+  slotBottom.setAttribute('name', 'fixed-navigation');
+  navBottom.append(slotBottom);
+  const config = item(slotBottom, 'sidebar-config', 'Einstellungen', badge ? '<span slot="end">' + badge + '</span>' : '');
+  config.setAttribute('href', '/config');
+  const notifications = item(slotBottom, 'sidebar-notifications', 'Benachrichtigungen');
+  const profile = item(slotBottom, 'sidebar-profile', 'Profil');
+  profile.setAttribute('href', '/profile');
+  root.append(navMain, navBottom);
+  return { root, slotMain, slotBottom, config, notifications, profile, doc };
+}
+
+const REAL_PANELS = {
+  'mein-zuhause': { require_admin: false },
+  'heizung-uebersicht': { require_admin: false },
+  hacs: { require_admin: true },
+  'dienste-uebersicht': { require_admin: true },
+  config: { require_admin: true },
+  profile: { require_admin: false },
+};
+
+function realController(api, dom, rawConfig) {
+  const hass = { panels: REAL_PANELS, user: { is_admin: true } };
+  return api.createController({
+    getHass: () => hass,
+    findSidebar: () => api.deepQuery(dom.window.document, 'ha-sidebar'),
+    config: api.normalizeConfig(rawConfig),
+  });
+}
+
+test('Einstellungen bleiben unten, wenn settings_in_group aus ist', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom, { badge: '2' });
+  const c = realController(api, dom, { order: ['mein-zuhause'] });
+  c.apply();
+  assert.equal(sb.config.hasAttribute('data-es-hidden'), false);
+  assert.equal(sb.root.querySelectorAll('[data-es-proxy]').length, 0);
+  // die untere Liste behält ihre Reihenfolge, auch wenn eine eigene Reihenfolge gesetzt ist
+  assert.equal(sb.config.style.order, '');
+  assert.equal(sb.notifications.style.order, '');
+  assert.equal(sb.profile.style.order, '');
+  assert.equal(sb.root.querySelector('[data-es-header] .es-badge').textContent, '');
+});
+
+test('settings_in_group: Kopie in der Gruppe, Original ausgeblendet, Badge an der Kopfzeile', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom, { badge: '2' });
+  const c = realController(api, dom, { settings_in_group: true });
+  c.apply();
+
+  assert.equal(c.state.status, 'grouped');
+  assert.equal(sb.config.hasAttribute('data-es-hidden'), true);
+  const proxy = sb.slotMain.querySelector('[data-es-proxy="config"]');
+  assert.ok(proxy);
+  assert.equal(proxy.querySelector('[slot="headline"]').textContent, 'Einstellungen');
+  assert.equal(proxy.id, '');
+  assert.equal(proxy.hasAttribute('href'), false);
+  assert.equal(proxy.querySelector('[data-es-badge]').textContent, '2');
+  // Kopie steht als erster Eintrag direkt hinter der Kopfzeile (kleinste Ordnungszahl der Gruppe)
+  assert.equal(proxy.style.order, '9001');
+  assert.equal(sb.slotMain.querySelector('#sidebar-panel-hacs').style.order, '9002');
+  // Kopfzeile zeigt die Zahl, solange zugeklappt
+  assert.equal(sb.root.querySelector('[data-es-header] .es-badge').textContent, '2');
+  // Benachrichtigungen und Profil bleiben unberührt
+  assert.equal(sb.notifications.hasAttribute('data-es-hidden'), false);
+  assert.equal(sb.profile.hasAttribute('data-es-hidden'), false);
+});
+
+test('Badge der Einstellungen wird nachgeführt und verschwindet wieder', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom, { badge: '2' });
+  const c = realController(api, dom, { settings_in_group: true });
+  c.apply();
+  sb.config.querySelector('[slot="end"]').textContent = '5';
+  c.apply();
+  assert.equal(sb.root.querySelector('[data-es-header] .es-badge').textContent, '5');
+  assert.equal(sb.root.querySelector('[data-es-proxy] [data-es-badge]').textContent, '5');
+  sb.config.querySelector('[slot="end"]').remove();
+  c.apply();
+  assert.equal(sb.root.querySelector('[data-es-header] .es-badge').textContent, '');
+  assert.equal(sb.root.querySelector('[data-es-proxy] [data-es-badge]'), null);
+});
+
+test('Klick auf die Kopie von Einstellungen öffnet /config', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom);
+  const c = realController(api, dom, { settings_in_group: true });
+  c.apply();
+  const events = [];
+  dom.window.addEventListener('location-changed', (ev) => events.push(ev));
+  const proxy = sb.root.querySelector('[data-es-proxy="config"]');
+  proxy.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  assert.equal(dom.window.location.pathname, '/config');
+  assert.equal(events.length, 1);
+});
+
+test('Ohne Badge bleibt die Kopfzeile ohne Zahl; stop() entfernt Kopie und Markierungen', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom);
+  const c = realController(api, dom, { settings_in_group: true });
+  c.start();
+  assert.equal(sb.root.querySelector('[data-es-header] .es-badge').textContent, '');
+  c.stop();
+  assert.equal(sb.root.querySelectorAll('[data-es-proxy],[data-es-header],[data-es-hidden],[data-es-grouped]').length, 0);
+  assert.equal(sb.config.hasAttribute('data-es-hidden'), false);
+});
+
+test('Wechsel auf /config klappt die Gruppe auf', () => {
+  const { dom, api } = loadApi();
+  buildRealSidebar(dom);
+  dom.reconfigure({ url: 'http://localhost/config/dashboard' });
+  const c = realController(api, dom, { settings_in_group: true });
+  c.onLocation();
+  c.apply();
+  assert.equal(c.state.expanded, true);
 });

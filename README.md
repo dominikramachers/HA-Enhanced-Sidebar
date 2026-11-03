@@ -12,8 +12,9 @@ Eine einklappbare **Admin-Gruppe** für die Seitenleiste von Home Assistant.
 - Admin-Panels werden **automatisch erkannt** (`require_admin`). Neue Add-ons und Admin-Dashboards landen ohne Konfiguration in der Gruppe.
 - Die Gruppe ist beim Laden **zugeklappt**, klappt auf einer ihrer Seiten **automatisch auf** und beim Wechsel auf eine andere Seite wieder zu (abschaltbar).
 - Optional: einzelne Panels **zusätzlich** in die Gruppe legen oder **nie** hineinlegen, Panels **für alle ausblenden** (z. B. Verlauf, Logbuch, Medien) und die **Reihenfolge** festlegen.
+- Optional: der Eintrag **Einstellungen** aus dem unteren Bereich steht in der Gruppe. Die Zahl offener Updates und Reparaturen bleibt sichtbar, auch wenn die Gruppe zugeklappt ist.
 - Funktioniert mit der schmalen Seitenleiste (nur Symbole) und mit dem Menü auf dem Handy. Bedienung per Touch und Tastatur (Enter/Leertaste), Animation respektiert „Bewegung reduzieren“.
-- Die Einträge von Home Assistant werden **nicht verschoben oder neu gebaut**. Das Script setzt nur Markierungen und eine Kopfzeile. Erkennt es den Aufbau der Seitenleiste nicht (zum Beispiel nach einem Update von Home Assistant), tut es nichts und die normale Seitenleiste bleibt.
+- Die Einträge von Home Assistant werden **nicht verschoben oder neu gebaut**. Das Script setzt nur Markierungen und eine Kopfzeile. Nur Einträge aus dem unteren Bereich (Einstellungen) erscheinen als Kopie in der Gruppe, das Original wird ausgeblendet. Erkennt es den Aufbau der Seitenleiste nicht (zum Beispiel nach einem Update von Home Assistant), tut es nichts und die normale Seitenleiste bleibt.
 
 ## Installation
 
@@ -41,6 +42,7 @@ Einstellungen → Geräte & Dienste → Enhanced Sidebar → **Konfigurieren**. 
 | Symbol der Gruppe | MDI-Symbol | `mdi:shield-account-outline` |
 | Admin-Panels automatisch erkennen | Alle Admin-Panels in die Gruppe | an |
 | Gruppe automatisch zuklappen | Zu beim Laden und beim Verlassen der Gruppe | an |
+| Einstellungen in die Gruppe | „Einstellungen“ aus dem unteren Bereich in die Gruppe; die zugeklappte Gruppe zeigt die Zahl offener Updates und Reparaturen | aus |
 | Zusätzlich in die Gruppe | URL-Pfade, die immer in die Gruppe sollen | leer |
 | Nie in die Gruppe | URL-Pfade, die nie in die Gruppe sollen | `config`, `developer-tools`, `profile` |
 | Ausblenden (für alle) | URL-Pfade, die für alle verschwinden | leer |
@@ -71,4 +73,4 @@ Das Script liegt in `custom_components/enhanced_sidebar/frontend/enhanced-sideba
 
 ## English
 
-A collapsible **admin group** for the Home Assistant sidebar. Dashboards for everyone stay in the sidebar as usual; everything only administrators can see (admin dashboards, add-ons, HACS …) is grouped automatically under a collapsed "Admin" entry. It works in the browser and in the Companion app. Install it through HACS as a custom repository (type *Integration*, Home Assistant 2026.6 or newer), add the integration under Settings → Devices & services and reload the page. Settings (group name and icon, auto-detection, include/exclude lists, hidden panels, order, auto-collapse) are in the integration options. Add `?es=0` to a URL to disable the script for that page load; run `enhancedSidebarDebug()` in the browser console for diagnostics.
+A collapsible **admin group** for the Home Assistant sidebar. Dashboards for everyone stay in the sidebar as usual; everything only administrators can see (admin dashboards, add-ons, HACS …) is grouped automatically under a collapsed "Admin" entry. It works in the browser and in the Companion app. Install it through HACS as a custom repository (type *Integration*, Home Assistant 2026.6 or newer), add the integration under Settings → Devices & services and reload the page. Settings (group name and icon, auto-detection, include/exclude lists, hidden panels, order, auto-collapse, optionally moving "Settings" into the group) are in the integration options. Add `?es=0` to a URL to disable the script for that page load; run `enhancedSidebarDebug()` in the browser console for diagnostics.

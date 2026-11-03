@@ -19,7 +19,8 @@
 
   const ORDER_UNLISTED = 500;
   const ORDER_HEADER = 9000;
-  const ORDER_GROUPED = 9001;
+  const ORDER_PROXY = 9001;
+  const ORDER_GROUPED = 9002;
 
   const DEFAULTS = {
     group_name: 'Admin',
@@ -30,6 +31,7 @@
     hidden: [],
     order: [],
     auto_collapse: true,
+    settings_in_group: false,
   };
 
   /* ------------------------------------------------------------------ *
@@ -46,11 +48,14 @@
   function normalizeConfig(raw) {
     const r = raw && typeof raw === 'object' ? raw : {};
     const pick = (key) => (r[key] === undefined || r[key] === null ? DEFAULTS[key] : r[key]);
+    const include = toList(pick('include'));
+    // "Einstellungen in die Gruppe" ist die Kurzform für "config" unter "Zusätzlich in die Gruppe"
+    if (pick('settings_in_group') === true && !include.includes('config')) include.push('config');
     return {
       group_name: String(pick('group_name')).trim() || DEFAULTS.group_name,
       group_icon: String(pick('group_icon')).trim() || DEFAULTS.group_icon,
       auto_detect_admin: pick('auto_detect_admin') !== false,
-      include: toList(pick('include')),
+      include,
       exclude: toList(pick('exclude')),
       hidden: toList(pick('hidden')),
       order: toList(pick('order')),
@@ -159,6 +164,83 @@
     return items;
   }
 
+  /** Zahl im Badge eines Eintrags (offene Updates/Reparaturen an "Einstellungen"), sonst "". */
+  function badgeText(el) {
+    const candidates = Array.from(el.querySelectorAll('.badge, .notification-badge, [slot="end"]'));
+    for (const child of Array.from(el.children)) {
+      const slot = child.getAttribute('slot');
+      if (slot !== 'start' && slot !== 'headline' && !candidates.includes(child)) candidates.push(child);
+    }
+    for (const node of candidates) {
+      if (node.hasAttribute('data-es-badge')) continue;
+      const text = (node.textContent || '').trim();
+      if (/^\d+\+?$/.test(text)) return text;
+    }
+    return '';
+  }
+
+  /**
+   * Eintrag aus einer anderen Liste (z. B. "Einstellungen" im unteren Bereich) in der Gruppe:
+   * Der Original-Eintrag bleibt an seinem Platz (nur ausgeblendet), in der Gruppe steht eine Kopie
+   * mit Symbol und Beschriftung. Ein Klick öffnet dieselbe Seite wie ein Link von Home Assistant.
+   */
+  function buildProxy(orig, path) {
+    const proxy = orig.cloneNode(true);
+    for (const attr of Array.from(proxy.attributes)) {
+      if (attr.name === 'id' || attr.name === 'href' || attr.name.startsWith('data-es-')) proxy.removeAttribute(attr.name);
+    }
+    for (const child of Array.from(proxy.children)) {
+      const slot = child.getAttribute('slot');
+      if (slot !== 'start' && slot !== 'headline') child.remove();
+    }
+    // Symbole bekommen ihr Bild über eine Eigenschaft, die cloneNode nicht mitnimmt
+    const from = orig.querySelectorAll('[slot="start"]');
+    const to = proxy.querySelectorAll('[slot="start"]');
+    from.forEach((node, i) => {
+      if (to[i] && 'path' in node && node.path) to[i].path = node.path;
+    });
+    proxy.setAttribute('data-es-proxy', path);
+    proxy.setAttribute('role', 'listitem');
+    proxy.setAttribute('tabindex', '0');
+    const go = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      history.pushState(null, '', '/' + path);
+      window.dispatchEvent(new CustomEvent('location-changed', { bubbles: true, composed: true, detail: { replace: false } }));
+    };
+    proxy.addEventListener('click', go);
+    proxy.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') go(ev);
+    });
+    return proxy;
+  }
+
+  /** Zustand (ausgewählt, Badge) des Originals auf die Kopie übertragen. */
+  function syncProxy(orig, proxy) {
+    const cls = orig.className || '';
+    if (proxy.className !== cls) proxy.className = cls;
+    for (const name of ['selected', 'active', 'aria-current']) {
+      const value = orig.getAttribute(name);
+      if (value === null) clearAttr(proxy, name);
+      else setAttr(proxy, name, value);
+    }
+    const text = badgeText(orig);
+    let badge = proxy.querySelector('[data-es-badge]');
+    if (!text) {
+      if (badge) badge.remove();
+    } else {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'es-badge';
+        badge.setAttribute('slot', 'end');
+        badge.setAttribute('data-es-badge', '');
+        proxy.append(badge);
+      }
+      if (badge.textContent !== text) badge.textContent = text;
+    }
+    return text;
+  }
+
   const setAttr = (el, name, value) => {
     if (el.getAttribute(name) !== value) el.setAttribute(name, value);
   };
@@ -187,8 +269,19 @@
 [data-es-header] .es-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 [data-es-header] .es-chevron{transition:transform .2s ease}
 [data-es-header][aria-expanded="true"] .es-chevron{transform:rotate(180deg)}
+.es-badge{
+  box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:none;
+  min-width:20px;height:20px;padding:0 6px;border-radius:10px;
+  background:var(--accent-color,#ff9800);color:var(--text-accent-color,var(--text-primary-color,#fff));
+  font-size:12px;font-weight:500;line-height:20px;
+}
+[data-es-header]{position:relative}
+[data-es-header] .es-badge{margin-inline-start:auto}
+[data-es-header][aria-expanded="true"] .es-badge,[data-es-header] .es-badge:empty{display:none}
+[data-es-proxy]{cursor:pointer}
 [data-es-compact]>[data-es-header]{justify-content:center;padding:0}
 [data-es-compact]>[data-es-header] .es-label,[data-es-compact]>[data-es-header] .es-chevron{display:none}
+[data-es-compact]>[data-es-header] .es-badge{position:absolute;top:2px;right:6px;min-width:16px;height:16px;padding:0 4px;font-size:10px;line-height:16px}
 @media (pointer:coarse){[data-es-header]{height:48px;min-height:48px}}
 @media (prefers-reduced-motion:reduce){[data-es-header] .es-chevron{transition:none}}
 `;
@@ -230,7 +323,9 @@
     const chevron = document.createElement('ha-icon');
     chevron.className = 'es-chevron';
     chevron.setAttribute('icon', 'mdi:chevron-down');
-    header.append(icon, label, chevron);
+    const badge = document.createElement('span');
+    badge.className = 'es-badge';
+    header.append(icon, label, badge, chevron);
 
     header.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -264,6 +359,7 @@
       applying: false,
       status: 'init',
       lastItems: [],
+      proxies: new Map(),
     };
 
     const OBSERVE = {
@@ -315,8 +411,9 @@
 
     function cleanup(root) {
       removeHeader();
-      for (const el of root.querySelectorAll('[data-es-path],[data-es-list],[data-es-header]')) {
-        if (el.hasAttribute('data-es-header')) {
+      state.proxies.clear();
+      for (const el of root.querySelectorAll('[data-es-path],[data-es-list],[data-es-header],[data-es-proxy]')) {
+        if (el.hasAttribute('data-es-header') || el.hasAttribute('data-es-proxy')) {
           el.remove();
           continue;
         }
@@ -371,9 +468,22 @@
             best = count;
           }
         }
+        // Einträge aus anderen Listen (z. B. "Einstellungen" unten) stehen als Kopie in der Gruppe.
         for (const d of decisions) {
-          if (d.grouped && d.el.parentElement !== groupParent) d.grouped = false;
+          d.proxied = false;
+          if (d.grouped && d.el.parentElement !== groupParent) {
+            d.grouped = false;
+            d.proxied = !!groupParent;
+          }
         }
+
+        // Hauptliste = Liste mit den meisten Einträgen. Nur dort bekommen nicht aufgeführte Einträge
+        // einen Platz hinter den aufgeführten; die untere Liste (Einstellungen, Benachrichtigungen,
+        // Profil) behält ihre Reihenfolge von Home Assistant.
+        const sizes = new Map();
+        for (const d of decisions) sizes.set(d.el.parentElement, (sizes.get(d.el.parentElement) || 0) + 1);
+        let mainParent = null;
+        for (const [parent, count] of sizes) if (!mainParent || count > sizes.get(mainParent)) mainParent = parent;
 
         const orderedParents = new Set();
         let firstGrouped = null;
@@ -381,11 +491,11 @@
           let order = null;
           if (d.grouped) order = ORDER_GROUPED + (d.rank === null ? 0 : d.rank);
           else if (d.rank !== null) order = d.rank;
-          else if (cfg.order.length) order = ORDER_UNLISTED;
+          else if (cfg.order.length && d.el.parentElement === mainParent) order = ORDER_UNLISTED;
 
           setAttr(d.el, 'data-es-path', d.path);
           setFlag(d.el, 'data-es-grouped', d.grouped);
-          setFlag(d.el, 'data-es-hidden', d.hidden);
+          setFlag(d.el, 'data-es-hidden', d.hidden || d.proxied);
           if (order === null) {
             if (d.el.style.order) d.el.style.removeProperty('order');
           } else if (d.el.style.order !== String(order)) {
@@ -393,6 +503,34 @@
           }
           if (order !== null && d.el.parentElement) orderedParents.add(d.el.parentElement);
           if (d.grouped && !firstGrouped) firstGrouped = d.el;
+        }
+
+        // Kopien für Einträge aus anderen Listen
+        let proxyBadge = 0;
+        const wanted = new Set();
+        for (const d of decisions) {
+          if (!d.proxied) continue;
+          wanted.add(d.path);
+          let proxy = state.proxies.get(d.path);
+          if (!proxy || !proxy.isConnected || proxy.parentElement !== groupParent) {
+            if (proxy) proxy.remove();
+            proxy = buildProxy(d.el, d.path);
+            state.proxies.set(d.path, proxy);
+            groupParent.append(proxy);
+          }
+          const text = syncProxy(d.el, proxy);
+          proxyBadge += parseInt(text, 10) || 0;
+          const order = d.rank === null ? ORDER_PROXY : ORDER_GROUPED + d.rank;
+          setFlag(proxy, 'data-es-grouped', true);
+          if (proxy.style.order !== String(order)) proxy.style.order = String(order);
+          orderedParents.add(groupParent);
+          if (!firstGrouped) firstGrouped = proxy;
+        }
+        for (const [path, proxy] of Array.from(state.proxies)) {
+          if (!wanted.has(path)) {
+            proxy.remove();
+            state.proxies.delete(path);
+          }
         }
 
         // Listen markieren, die per "order" sortiert werden (alle anderen bleiben unberührt).
@@ -405,6 +543,9 @@
             groupParent.insertBefore(state.header, firstGrouped);
           }
           setAttr(state.header, 'aria-expanded', state.expanded ? 'true' : 'false');
+          const headerBadge = state.header.querySelector('.es-badge');
+          const badgeValue = proxyBadge > 0 ? String(proxyBadge) : '';
+          if (headerBadge && headerBadge.textContent !== badgeValue) headerBadge.textContent = badgeValue;
           setFlag(groupParent, 'data-es-collapsed', !state.expanded);
           const width = sidebar.getBoundingClientRect ? sidebar.getBoundingClientRect().width : 0;
           setFlag(groupParent, 'data-es-compact', width > 0 && width < 120);

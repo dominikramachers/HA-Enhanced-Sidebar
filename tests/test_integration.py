@@ -12,6 +12,7 @@ from custom_components.enhanced_sidebar.const import (
     CONF_GROUP_NAME,
     CONF_HIDDEN,
     CONF_INCLUDE,
+    CONF_SETTINGS_IN_GROUP,
     DEFAULT_OPTIONS,
     DOMAIN,
     WS_GET_CONFIG,
@@ -85,6 +86,7 @@ async def test_options_flow_cleans_input(hass: HomeAssistant) -> None:
             CONF_GROUP_NAME: "   ",
             CONF_INCLUDE: ["/kalender-uebersicht/", "kalender-uebersicht", " ", "pakete-uebersicht"],
             CONF_HIDDEN: ["history", "logbook"],
+            CONF_SETTINGS_IN_GROUP: True,
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -93,3 +95,5 @@ async def test_options_flow_cleans_input(hass: HomeAssistant) -> None:
     assert options[CONF_INCLUDE] == ["kalender-uebersicht", "pakete-uebersicht"]
     assert options[CONF_HIDDEN] == ["history", "logbook"]
     assert options[CONF_EXCLUDE] == DEFAULT_OPTIONS[CONF_EXCLUDE]
+    assert options[CONF_SETTINGS_IN_GROUP] is True
+    assert DEFAULT_OPTIONS[CONF_SETTINGS_IN_GROUP] is False
