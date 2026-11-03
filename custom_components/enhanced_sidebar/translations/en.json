@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enhanced Sidebar",
+        "description": "Adds a collapsible admin group to the sidebar. Panels that only administrators can see (dashboards, add-ons, HACS …) are moved into it automatically. All other dashboards stay in the sidebar as usual.\n\nYou can change the settings afterwards in the integration options."
+      }
+    },
+    "abort": {
+      "already_configured": "Enhanced Sidebar is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enhanced Sidebar",
+        "description": "Changes take effect after reloading the page (in the app: close and reopen it).",
+        "data": {
+          "group_name": "Group name",
+          "group_icon": "Group icon",
+          "auto_detect_admin": "Detect admin panels automatically",
+          "auto_collapse": "Collapse group automatically",
+          "include": "Always add to group",
+          "exclude": "Never add to group",
+          "hidden": "Hide (for everyone)",
+          "order": "Order of entries"
+        },
+        "data_description": {
+          "group_name": "Label of the entry in the sidebar.",
+          "group_icon": "Icon of the entry, e.g. mdi:shield-account-outline.",
+          "auto_detect_admin": "All panels that only administrators can see go into the group. If off, only the entries under \"Always add to group\" are grouped.",
+          "auto_collapse": "The group is collapsed on load and collapses again when you open a page outside it. It opens automatically on a page inside the group.",
+          "include": "URL paths of panels that always belong in the group (the part after the slash, e.g. calendar-overview).",
+          "exclude": "URL paths of panels that never go into the group, even if they are admin-only.",
+          "hidden": "URL paths of panels removed from the sidebar for every user, e.g. history, logbook, media-browser.",
+          "order": "URL paths in the order you want. Entries not listed follow afterwards in the normal order."
+        }
+      }
+    }
+  }
+}

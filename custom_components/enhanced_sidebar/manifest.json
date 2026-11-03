@@ -1,0 +1,13 @@
+{
+  "domain": "enhanced_sidebar",
+  "name": "Enhanced Sidebar",
+  "codeowners": ["@dominikramachers"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "websocket_api"],
+  "documentation": "https://github.com/dominikramachers/HA-Enhanced-Sidebar",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/dominikramachers/HA-Enhanced-Sidebar/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
