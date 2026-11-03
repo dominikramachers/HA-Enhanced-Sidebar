@@ -340,3 +340,53 @@ test('Angezeigter Gruppenname wird als Text eingesetzt (kein HTML)', () => {
   assert.equal(label.children.length, 0);
   assert.equal(label.textContent, '<img src=x onerror=alert(1)>');
 });
+
+test('Aufbau von Home Assistant 2026.10: ha-list-item-button mit ID, Link im Shadow-Root, Eintraege in <slot>', () => {
+  const { dom, api } = loadApi();
+  const doc = dom.window.document;
+  const ha = doc.createElement('home-assistant');
+  doc.body.append(ha);
+  const main = doc.createElement('home-assistant-main');
+  ha.attachShadow({ mode: 'open' }).append(main);
+  const sidebar = doc.createElement('ha-sidebar');
+  main.attachShadow({ mode: 'open' }).append(sidebar);
+  const root = sidebar.attachShadow({ mode: 'open' });
+  const nav = doc.createElement('ha-list-nav');
+  const slot = doc.createElement('slot');
+  nav.attachShadow({ mode: 'open' });
+  nav.append(slot);
+  const paths = ['mein-zuhause', 'core_configurator', 'dienste-uebersicht', 'hacs', 'todo'];
+  for (const path of paths) {
+    const item = doc.createElement('ha-list-item-button');
+    item.id = 'sidebar-panel-' + path;
+    item.attachShadow({ mode: 'open' }).innerHTML = '<a href="/' + path + '"></a>';
+    slot.append(item);
+  }
+  root.append(nav);
+
+  const panels = {
+    'mein-zuhause': { require_admin: false },
+    core_configurator: { require_admin: true },
+    'dienste-uebersicht': { require_admin: true },
+    hacs: { require_admin: true },
+    todo: { require_admin: false },
+  };
+  const hass = { panels, user: { is_admin: true } };
+  const c = api.createController({
+    getHass: () => hass,
+    findSidebar: () => api.deepQuery(doc, 'ha-sidebar'),
+    config: api.normalizeConfig({ hidden: ['todo'], order: ['mein-zuhause'] }),
+  });
+  c.apply();
+
+  assert.equal(c.state.status, 'grouped');
+  assert.equal(root.querySelector('#sidebar-panel-todo').hasAttribute('data-es-hidden'), true);
+  assert.equal(root.querySelector('#sidebar-panel-mein-zuhause').hasAttribute('data-es-grouped'), false);
+  for (const path of ['core_configurator', 'dienste-uebersicht', 'hacs']) {
+    assert.equal(root.querySelector('#sidebar-panel-' + path).hasAttribute('data-es-grouped'), true, path);
+  }
+  const header = root.querySelector('[data-es-header]');
+  assert.ok(header);
+  assert.equal(header.parentElement, slot);
+  assert.equal(slot.hasAttribute('data-es-collapsed'), true);
+});

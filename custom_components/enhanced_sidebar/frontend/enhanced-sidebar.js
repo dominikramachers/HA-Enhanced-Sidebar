@@ -121,9 +121,24 @@
     return null;
   }
 
-  /** Alle Panel-Einträge der Seitenleiste (äußerstes Element mit href, dessen Ziel ein Panel ist). */
+  const ID_PREFIX = 'sidebar-panel-';
+
+  /**
+   * Panel eines Eintrags. Ältere Seitenleisten tragen ein href am Eintrag selbst. Neuere
+   * (ha-list-item-button) haben die ID "sidebar-panel-<url_path>" und den Link im eigenen Shadow-Root.
+   */
+  function panelOfItem(el) {
+    const href = el.getAttribute('href');
+    if (href) return panelFromHref(href);
+    const id = el.id || '';
+    if (id.startsWith(ID_PREFIX) && id.length > ID_PREFIX.length) return id.slice(ID_PREFIX.length);
+    const link = el.shadowRoot && el.shadowRoot.querySelector('a[href]');
+    return link ? panelFromHref(link.getAttribute('href')) : null;
+  }
+
+  /** Alle Panel-Einträge der Seitenleiste (äußerstes Element, dessen Ziel ein Panel ist). */
   function collectItems(root, panels) {
-    const found = Array.from(root.querySelectorAll('[href]'));
+    const found = Array.from(root.querySelectorAll('[href], [id^="' + ID_PREFIX + '"]'));
     const set = new Set(found);
     const items = [];
     for (const el of found) {
@@ -137,7 +152,7 @@
         ancestor = ancestor.parentElement;
       }
       if (nested) continue;
-      const path = panelFromHref(el.getAttribute('href'));
+      const path = panelOfItem(el);
       if (!path || !panels || !Object.prototype.hasOwnProperty.call(panels, path)) continue;
       items.push({ el, path });
     }
