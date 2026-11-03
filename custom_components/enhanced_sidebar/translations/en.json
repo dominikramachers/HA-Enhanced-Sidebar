@@ -18,6 +18,7 @@
         "data": {
           "group_name": "Group name",
           "group_icon": "Group icon",
+          "group_style": "Group style",
           "auto_detect_admin": "Detect admin panels automatically",
           "auto_collapse": "Collapse group automatically",
           "settings_in_group": "Settings in the group",
@@ -29,6 +30,7 @@
         "data_description": {
           "group_name": "Label of the entry in the sidebar.",
           "group_icon": "Icon of the entry, e.g. mdi:shield-account-outline.",
+          "group_style": "\"Dropdown\" expands the entries inside the sidebar. \"Popup\" puts an admin button at the bottom of the sidebar (above Notifications) that opens a window next to the sidebar; on phones it appears at the bottom of the screen.",
           "auto_detect_admin": "All panels that only administrators can see go into the group. If off, only the entries under \"Always add to group\" are grouped.",
           "auto_collapse": "The group is collapsed on load and collapses again when you open a page outside it. It opens automatically on a page inside the group.",
           "settings_in_group": "Moves the \"Settings\" entry from the bottom of the sidebar into the group. The collapsed group shows the number of pending updates and repairs.",
@@ -37,6 +39,14 @@
           "hidden": "URL paths of panels removed from the sidebar for every user, e.g. history, logbook, media-browser.",
           "order": "URL paths in the order you want. Entries not listed follow afterwards in the normal order."
         }
+      }
+    }
+  },
+  "selector": {
+    "group_style": {
+      "options": {
+        "dropdown": "Dropdown (expands in the sidebar)",
+        "popup": "Popup (window next to the sidebar)"
       }
     }
   }

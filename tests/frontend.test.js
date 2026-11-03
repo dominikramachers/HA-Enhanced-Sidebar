@@ -542,3 +542,262 @@ test('Wechsel auf /config klappt die Gruppe auf', () => {
   c.apply();
   assert.equal(c.state.expanded, true);
 });
+
+/* ---------------------------------------------------------------------- *
+ * group_style: popup
+ * ---------------------------------------------------------------------- */
+
+const POPUP = { group_style: 'popup', settings_in_group: true };
+
+const key = (dom, el, k) => el.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true }));
+const rowsOf = (dom) => Array.from(dom.window.document.querySelectorAll('[data-es-popup] a'));
+
+test('normalizeConfig: group_style nur popup oder dropdown', () => {
+  const { api } = loadApi();
+  assert.equal(api.normalizeConfig(null).group_style, 'dropdown');
+  assert.equal(api.normalizeConfig({ group_style: 'popup' }).group_style, 'popup');
+  assert.equal(api.normalizeConfig({ group_style: 'quatsch' }).group_style, 'dropdown');
+});
+
+test('Popup: Admin-Button im unteren Bereich vor Benachrichtigungen, Einträge ausgeblendet, keine Kopien', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom, { badge: '2' });
+  const c = realController(api, dom, POPUP);
+  c.apply();
+
+  assert.equal(c.state.status, 'grouped');
+  const header = sb.root.querySelector('[data-es-header]');
+  assert.ok(header);
+  assert.equal(header.parentElement, sb.slotBottom);
+  assert.equal(header.nextElementSibling, sb.config); // Einstellungen ist (ausgeblendet) das erste Original
+  assert.equal(header.style.order, '-1'); // vor allen Originalen, auch wenn die Liste ein Flex-Container ist
+  assert.equal(header.hasAttribute('data-es-popup-btn'), true);
+  assert.equal(header.getAttribute('aria-haspopup'), 'menu');
+  assert.equal(header.querySelector('.es-chevron').getAttribute('icon'), 'mdi:chevron-right');
+  // Gruppenmitglieder sind ausgeblendet, die normale Liste bleibt sichtbar
+  for (const path of ['hacs', 'dienste-uebersicht']) {
+    assert.equal(sb.slotMain.querySelector('#sidebar-panel-' + path).hasAttribute('data-es-hidden'), true, path);
+  }
+  assert.equal(sb.config.hasAttribute('data-es-hidden'), true);
+  assert.equal(sb.notifications.hasAttribute('data-es-hidden'), false);
+  assert.equal(sb.slotMain.querySelector('#sidebar-panel-mein-zuhause').hasAttribute('data-es-hidden'), false);
+  assert.equal(sb.root.querySelectorAll('[data-es-proxy]').length, 0);
+  // Zahl der offenen Einträge sitzt am Button, auch wenn nichts offen ist
+  assert.equal(header.querySelector('.es-badge').textContent, '2');
+  assert.equal(header.hasAttribute('data-es-active'), false, 'auf /mein-zuhause nicht markiert');
+  // kein Popup, solange nichts geklickt wurde
+  assert.equal(rowsOf(dom).length, 0);
+  // wiederholtes apply: genau ein Button, gleiche Position
+  c.apply();
+  c.apply();
+  assert.equal(sb.root.querySelectorAll('[data-es-header]').length, 1);
+});
+
+test('Popup: Klick öffnet das Fenster im body, Einstellungen zuerst, aktuelle Seite markiert', () => {
+  const { dom, api } = loadApi('http://ha.test/hacs');
+  const sb = buildRealSidebar(dom, { badge: '2' });
+  const c = realController(api, dom, POPUP);
+  c.start();
+  const header = sb.root.querySelector('[data-es-header]');
+  header.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+  assert.equal(header.getAttribute('aria-expanded'), 'true');
+  const popup = dom.window.document.querySelector('[data-es-popup]');
+  assert.ok(popup);
+  assert.equal(popup.parentElement, dom.window.document.body);
+  assert.equal(popup.getAttribute('role'), 'menu');
+  const rows = rowsOf(dom);
+  assert.deepEqual(rows.map((r) => r.getAttribute('data-es-path')), ['config', 'hacs', 'dienste-uebersicht']);
+  assert.deepEqual(rows.map((r) => r.querySelector('.es-label').textContent), ['Einstellungen', 'HACS', 'Dienste']);
+  assert.equal(rows[0].getAttribute('href'), '/config');
+  assert.equal(rows[0].querySelector('.es-badge').textContent, '2');
+  assert.equal(rows[1].getAttribute('aria-current'), 'page');
+  assert.equal(rows[0].hasAttribute('aria-current'), false);
+  assert.ok(dom.window.document.querySelector('style[data-es-popup-style]'));
+  // aktuelle Seite liegt in der Gruppe: Button ist als ausgewählt markiert
+  assert.equal(header.hasAttribute('data-es-active'), true);
+  c.stop();
+});
+
+test('Popup: Klick auf einen Eintrag navigiert und schließt, Strg-Klick bleibt ein normaler Link', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom);
+  const c = realController(api, dom, POPUP);
+  c.start();
+  const header = sb.root.querySelector('[data-es-header]');
+  header.click();
+  const events = [];
+  dom.window.addEventListener('location-changed', (ev) => events.push(ev));
+
+  rowsOf(dom)[1].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }));
+  assert.equal(dom.window.location.pathname, '/mein-zuhause');
+  assert.equal(events.length, 0);
+  assert.ok(dom.window.document.querySelector('[data-es-popup]'));
+
+  rowsOf(dom)[1].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  assert.equal(dom.window.location.pathname, '/hacs');
+  assert.equal(events.length, 1);
+  assert.equal(dom.window.document.querySelector('[data-es-popup]'), null);
+  assert.equal(header.getAttribute('aria-expanded'), 'false');
+  c.stop();
+});
+
+test('Popup: schließt per Escape und bei Klick daneben, nicht bei Klick im Popup', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom);
+  const c = realController(api, dom, POPUP);
+  c.start();
+  const header = sb.root.querySelector('[data-es-header]');
+  const doc = dom.window.document;
+  const pointer = (el) => el.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, composed: true }));
+
+  header.click();
+  pointer(doc.querySelector('[data-es-popup]'));
+  assert.ok(doc.querySelector('[data-es-popup]'), 'Klick im Popup lässt es offen');
+  pointer(header);
+  assert.ok(doc.querySelector('[data-es-popup]'), 'Klick auf den Button wird vom Button selbst behandelt');
+  pointer(doc.body);
+  assert.equal(doc.querySelector('[data-es-popup]'), null, 'Klick daneben schließt');
+
+  header.click();
+  key(dom, doc.querySelector('[data-es-popup] a'), 'Escape');
+  assert.equal(doc.querySelector('[data-es-popup]'), null, 'Escape schließt');
+
+  header.click();
+  header.click();
+  assert.equal(doc.querySelector('[data-es-popup]'), null, 'zweiter Klick auf den Button schließt');
+  c.stop();
+});
+
+test('Popup: Tastatur öffnet mit Fokus auf dem ersten Eintrag, Pfeiltasten wandern, Navigation schließt', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom);
+  const c = realController(api, dom, POPUP);
+  c.start();
+  const header = sb.root.querySelector('[data-es-header]');
+  const doc = dom.window.document;
+
+  key(dom, header, 'Enter');
+  let rows = rowsOf(dom);
+  assert.equal(doc.activeElement, rows[0]);
+  key(dom, rows[0], 'ArrowDown');
+  assert.equal(doc.activeElement, rows[1]);
+  key(dom, rows[1], 'ArrowUp');
+  key(dom, rows[0], 'ArrowUp');
+  assert.equal(doc.activeElement, rows[rows.length - 1], 'springt ans Ende');
+  key(dom, rows[0], 'Home');
+  assert.equal(doc.activeElement, rows[0]);
+  key(dom, rows[0], 'End');
+  assert.equal(doc.activeElement, rows[rows.length - 1]);
+
+  // Seitenwechsel von außen schließt das Popup
+  dom.window.history.pushState(null, '', '/heizung-uebersicht');
+  dom.window.dispatchEvent(new dom.window.CustomEvent('location-changed'));
+  assert.equal(doc.querySelector('[data-es-popup]'), null);
+  c.stop();
+});
+
+test('Popup: Inhalt folgt dem Badge der Einstellungen, Fokus bleibt erhalten', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom, { badge: '2' });
+  const c = realController(api, dom, POPUP);
+  c.start();
+  const header = sb.root.querySelector('[data-es-header]');
+  key(dom, header, 'Enter');
+  const doc = dom.window.document;
+  assert.equal(doc.activeElement.getAttribute('data-es-path'), 'config');
+
+  sb.config.querySelector('[slot="end"]').textContent = '7';
+  c.apply();
+  assert.equal(rowsOf(dom)[0].querySelector('.es-badge').textContent, '7');
+  assert.equal(doc.activeElement.getAttribute('data-es-path'), 'config', 'Fokus wandert nicht weg');
+  assert.equal(header.querySelector('.es-badge').textContent, '7');
+
+  sb.config.querySelector('[slot="end"]').remove();
+  c.apply();
+  assert.equal(rowsOf(dom)[0].querySelector('.es-badge'), null);
+  c.stop();
+});
+
+test('Popup: schmale Ansicht wird zum Fenster am unteren Rand und schließt die Seitenleiste nach der Auswahl', () => {
+  const { dom, api } = loadApi();
+  dom.window.matchMedia = () => ({ matches: true });
+  const sb = buildRealSidebar(dom);
+  const c = realController(api, dom, POPUP);
+  c.start();
+  sb.root.querySelector('[data-es-header]').click();
+  const popup = dom.window.document.querySelector('[data-es-popup]');
+  assert.equal(popup.hasAttribute('data-es-sheet'), true);
+  assert.equal(popup.style.left, '');
+
+  const toggles = [];
+  sb.root.host.addEventListener('hass-toggle-menu', (ev) => toggles.push(ev.detail.open));
+  rowsOf(dom)[1].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  assert.deepEqual(toggles, [false]);
+  c.stop();
+});
+
+test('Popup: breite Ansicht sitzt rechts neben der Seitenleiste auf Höhe des Buttons', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom);
+  const sidebar = sb.root.host;
+  sidebar.getBoundingClientRect = () => ({ left: 0, right: 256, top: 0, bottom: 800, width: 256, height: 800 });
+  dom.window.innerHeight = 800;
+  const c = realController(api, dom, POPUP);
+  c.apply();
+  sb.root.querySelector('[data-es-header]').getBoundingClientRect = () => ({ left: 0, right: 256, top: 640, bottom: 680, width: 256, height: 40 });
+  sb.root.querySelector('[data-es-header]').click();
+  const popup = dom.window.document.querySelector('[data-es-popup]');
+  assert.equal(popup.hasAttribute('data-es-sheet'), false);
+  assert.equal(popup.style.left, '264px');
+  assert.equal(popup.style.bottom, '120px');
+  assert.equal(popup.style.maxHeight, '672px');
+  c.stop();
+});
+
+test('Popup: ohne Mitglieder kein Button; stop() räumt Popup, Stil und Button auf', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom);
+  const none = realController(api, dom, { group_style: 'popup', auto_detect_admin: false });
+  none.apply();
+  assert.equal(none.state.status, 'no-group');
+  assert.equal(sb.root.querySelectorAll('[data-es-header]').length, 0);
+  none.stop();
+
+  const c = realController(api, dom, POPUP);
+  c.start();
+  sb.root.querySelector('[data-es-header]').click();
+  assert.ok(dom.window.document.querySelector('[data-es-popup]'));
+  c.stop();
+  assert.equal(dom.window.document.querySelector('[data-es-popup]'), null);
+  assert.equal(dom.window.document.querySelector('style[data-es-popup-style]'), null);
+  assert.equal(sb.root.querySelectorAll('[data-es-header],[data-es-hidden],[data-es-grouped]').length, 0);
+  assert.equal(sb.config.hasAttribute('data-es-hidden'), false);
+});
+
+test('Popup: ohne untere Liste steht der Button am Ende der Hauptliste', () => {
+  const { dom, api } = loadApi();
+  const doc = dom.window.document;
+  const sb = buildSidebar(dom, ['/mein-zuhause', '/hacs', '/dienste-uebersicht'], { bottom: [] });
+  const c = makeController(api, dom, sb, PANELS, { group_style: 'popup' });
+  c.apply();
+  const header = sb.root.querySelector('[data-es-header]');
+  assert.equal(header.parentElement, sb.list);
+  assert.equal(header.nextElementSibling, null);
+  assert.equal(sb.list.hasAttribute('data-es-list'), true);
+  assert.equal(doc.querySelector('[data-es-popup]'), null);
+});
+
+test('Dropdown bleibt Standard: kein Popup-Stil, Chevron zeigt nach unten', () => {
+  const { dom, api } = loadApi();
+  const sb = buildRealSidebar(dom);
+  const c = realController(api, dom, { settings_in_group: true });
+  c.start();
+  const header = sb.root.querySelector('[data-es-header]');
+  assert.equal(header.hasAttribute('data-es-popup-btn'), false);
+  assert.equal(header.querySelector('.es-chevron').getAttribute('icon'), 'mdi:chevron-down');
+  header.click();
+  assert.equal(dom.window.document.querySelector('[data-es-popup]'), null);
+  assert.equal(dom.window.document.querySelector('style[data-es-popup-style]'), null);
+  c.stop();
+});

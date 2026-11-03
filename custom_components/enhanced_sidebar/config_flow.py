@@ -11,6 +11,9 @@ from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     BooleanSelector,
     IconSelector,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
 )
@@ -21,12 +24,15 @@ from .const import (
     CONF_EXCLUDE,
     CONF_GROUP_ICON,
     CONF_GROUP_NAME,
+    CONF_GROUP_STYLE,
     CONF_HIDDEN,
     CONF_INCLUDE,
     CONF_ORDER,
     CONF_SETTINGS_IN_GROUP,
     DEFAULT_OPTIONS,
     DOMAIN,
+    GROUP_STYLE_DROPDOWN,
+    GROUP_STYLE_POPUP,
     LIST_KEYS,
 )
 
@@ -38,6 +44,13 @@ def _schema() -> vol.Schema:
         {
             vol.Optional(CONF_GROUP_NAME): TextSelector(),
             vol.Optional(CONF_GROUP_ICON): IconSelector(),
+            vol.Optional(CONF_GROUP_STYLE): SelectSelector(
+                SelectSelectorConfig(
+                    options=[GROUP_STYLE_DROPDOWN, GROUP_STYLE_POPUP],
+                    mode=SelectSelectorMode.DROPDOWN,
+                    translation_key=CONF_GROUP_STYLE,
+                )
+            ),
             vol.Optional(CONF_AUTO_DETECT_ADMIN): BooleanSelector(),
             vol.Optional(CONF_AUTO_COLLAPSE): BooleanSelector(),
             vol.Optional(CONF_SETTINGS_IN_GROUP): BooleanSelector(),
@@ -67,6 +80,10 @@ def _clean(user_input: dict[str, Any]) -> dict[str, Any]:
             result[key] = seen
         elif key == CONF_GROUP_NAME:
             result[key] = str(value or "").strip() or DEFAULT_OPTIONS[CONF_GROUP_NAME]
+        elif key == CONF_GROUP_STYLE:
+            result[key] = (
+                GROUP_STYLE_POPUP if value == GROUP_STYLE_POPUP else GROUP_STYLE_DROPDOWN
+            )
         else:
             result[key] = value
     return result
