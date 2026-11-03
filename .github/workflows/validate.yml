@@ -42,4 +42,13 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install pytest-homeassistant-custom-component
+      # Die Integration hängt vom frontend ab, dessen Paket (hass_frontend) nicht mitinstalliert wird.
+      - name: Install the frontend package pinned by Home Assistant
+        run: |
+          pip install "$(python - <<'EOF'
+          import json, pathlib, homeassistant
+          manifest = pathlib.Path(homeassistant.__file__).parent / "components/frontend/manifest.json"
+          print(next(r for r in json.loads(manifest.read_text())["requirements"] if "frontend" in r))
+          EOF
+          )"
       - run: pytest tests -q
