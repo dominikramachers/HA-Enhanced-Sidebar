@@ -570,6 +570,7 @@ test('Popup: Admin-Button im unteren Bereich vor Benachrichtigungen, Einträge a
   assert.ok(header);
   assert.equal(header.parentElement, sb.slotBottom);
   assert.equal(header.nextElementSibling, sb.config); // Einstellungen ist (ausgeblendet) das erste Original
+  assert.equal(header.style.order, '-1'); // vor allen Originalen, auch wenn die Liste ein Flex-Container ist
   assert.equal(header.hasAttribute('data-es-popup-btn'), true);
   assert.equal(header.getAttribute('aria-haspopup'), 'menu');
   assert.equal(header.querySelector('.es-chevron').getAttribute('icon'), 'mdi:chevron-right');

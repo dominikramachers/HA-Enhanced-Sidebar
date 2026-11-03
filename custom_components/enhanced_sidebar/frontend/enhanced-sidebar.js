@@ -814,8 +814,11 @@ ${BADGE_CSS}
               if (state.header.parentElement !== bottomParent || state.header.nextElementSibling !== anchor) {
                 bottomParent.insertBefore(state.header, anchor);
               }
-              if (state.header.style.order) state.header.style.removeProperty('order');
+              // Die Liste ist ein Flex-Container ("slot" hat display:contents): ohne eigene Ordnungszahl
+              // landet der Button wegen order:9000 aus dem Stil der Kopfzeile ganz unten.
+              if (state.header.style.order !== '-1') state.header.style.order = '-1';
             } else {
+              if (state.header.style.order) state.header.style.removeProperty('order');
               if (state.header.parentElement !== mainParent || state.header.nextElementSibling) mainParent.append(state.header);
               orderedParents.add(mainParent);
               setFlag(mainParent, 'data-es-list', true);
