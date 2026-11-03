@@ -54,6 +54,10 @@ Der **URL-Pfad** ist der Teil der Adresse nach dem ersten Slash, bei `https://ha
 - Für einen Seitenaufruf abschalten: `?es=0` an die Adresse hängen, zum Beispiel `https://ha.example/lovelace/0?es=0`.
 - Diagnose: In der Browser-Konsole `enhancedSidebarDebug()` aufrufen. Das zeigt, welche Einträge erkannt wurden und welche Panels als Admin-Panel gelten. Bitte bei Fehlermeldungen im Issue mit angeben.
 
+## Lizenz
+
+MIT, siehe [LICENSE](LICENSE).
+
 ## Entwicklung
 
 ```bash
