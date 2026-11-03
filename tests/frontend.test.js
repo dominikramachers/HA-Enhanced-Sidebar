@@ -584,6 +584,7 @@ test('Popup: Admin-Button im unteren Bereich vor Benachrichtigungen, Einträge a
   assert.equal(sb.root.querySelectorAll('[data-es-proxy]').length, 0);
   // Zahl der offenen Einträge sitzt am Button, auch wenn nichts offen ist
   assert.equal(header.querySelector('.es-badge').textContent, '2');
+  assert.equal(header.hasAttribute('data-es-active'), false, 'auf /mein-zuhause nicht markiert');
   // kein Popup, solange nichts geklickt wurde
   assert.equal(rowsOf(dom).length, 0);
   // wiederholtes apply: genau ein Button, gleiche Position
@@ -613,6 +614,8 @@ test('Popup: Klick öffnet das Fenster im body, Einstellungen zuerst, aktuelle S
   assert.equal(rows[1].getAttribute('aria-current'), 'page');
   assert.equal(rows[0].hasAttribute('aria-current'), false);
   assert.ok(dom.window.document.querySelector('style[data-es-popup-style]'));
+  // aktuelle Seite liegt in der Gruppe: Button ist als ausgewählt markiert
+  assert.equal(header.hasAttribute('data-es-active'), true);
   c.stop();
 });
 

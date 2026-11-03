@@ -327,6 +327,9 @@ ${BADGE_CSS}
 [data-es-header][data-es-popup-btn] .es-chevron{transform:none;opacity:.7}
 [data-es-header][data-es-popup-btn][aria-expanded="true"]{background:color-mix(in srgb,var(--sidebar-text-color,var(--primary-text-color)) 8%,transparent)}
 [data-es-header][data-es-popup-btn][aria-expanded="true"] .es-badge:not(:empty){display:inline-flex}
+[data-es-header][data-es-active]{color:var(--sidebar-selected-text-color,var(--primary-color))}
+[data-es-header][data-es-active] ha-icon{color:var(--sidebar-selected-icon-color,var(--primary-color))}
+[data-es-header][data-es-active]::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--sidebar-selected-icon-color,var(--primary-color));opacity:.12;pointer-events:none}
 `;
 
   // Das Popup liegt direkt im <body> (nicht im Shadow-Root der Seitenleiste), damit es nie abgeschnitten wird.
@@ -824,6 +827,8 @@ ${BADGE_CSS}
               setFlag(mainParent, 'data-es-list', true);
             }
             setAttr(state.header, 'aria-expanded', state.open ? 'true' : 'false');
+            // Liegt die aktuelle Seite in der Gruppe, ist der Button wie ein ausgewählter Eintrag markiert
+            setFlag(state.header, 'data-es-active', state.members.some((m) => m.selected));
             const total = members.reduce((sum, d) => sum + (parseInt(badgeText(d.el), 10) || 0), 0);
             const headerBadge = state.header.querySelector('.es-badge');
             const badgeValue = total > 0 ? String(total) : '';
