@@ -257,7 +257,7 @@
 [data-es-compact]>[data-es-grouped]{margin-inline-start:0}
 [data-es-header]{
   order:${ORDER_HEADER};box-sizing:border-box;display:flex;align-items:center;gap:16px;
-  height:44px;min-height:44px;margin:0 4px;padding:0 12px;border-radius:6px;cursor:pointer;
+  height:44px;min-height:44px;margin:0 4px 4px;padding:0 12px;border-radius:6px;cursor:pointer;
   user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
   color:var(--sidebar-text-color,var(--primary-text-color));
   font-family:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,Roboto,sans-serif));
